@@ -88,10 +88,7 @@ export async function provisionShop(shopId: string): Promise<{
 
   // 2. Buy phone number (Vapi requires a valid E.164 fallback, not empty)
   const fallbackE164 = resolveVapiFallbackE164(shop)
-  const phoneNumberRes = await purchasePhoneNumber({
-    areaCode: '415',
-    fallbackE164,
-  })
+  const phoneNumberRes = await purchasePhoneNumber({ fallbackE164 })
 
   // 3. Create assistant
   const assistantRes = await createAssistant({

@@ -36,9 +36,14 @@ async function vapiRequest<T>(
   return res.json() as Promise<T>
 }
 
+/**
+ * Try area codes in order until Vapi accepts one.
+ * Falls back to omitting numberDesiredAreaCode entirely so Vapi picks any available US number.
+ */
+const AREA_CODE_FALLBACKS = ['734', '708', '903', '512', '737', '972', '469', '214']
+
 export async function purchasePhoneNumber(params: {
   areaCode?: string
-  country?: string
   /** E.164 (e.g. +14155552671). Required by Vapi when creating a phone number. */
   fallbackE164: string
 }): Promise<VapiPhoneNumberResponse> {
@@ -48,9 +53,31 @@ export async function purchasePhoneNumber(params: {
       'fallbackE164 must be E.164 (e.g. +14155552671) for Vapi phone provisioning'
     )
   }
+
+  const codestoTry = params.areaCode
+    ? [params.areaCode, ...AREA_CODE_FALLBACKS]
+    : AREA_CODE_FALLBACKS
+
+  // Try each area code; on "area code not available" move to the next one
+  for (const code of codestoTry) {
+    try {
+      return await vapiRequest<VapiPhoneNumberResponse>('POST', '/phone-number', {
+        provider: 'vapi',
+        numberDesiredAreaCode: code,
+        fallbackDestination: { type: 'number', number: fallback },
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.toLowerCase().includes('area code') && msg.toLowerCase().includes('not available')) {
+        continue // try next code
+      }
+      throw err // unrelated error — rethrow immediately
+    }
+  }
+
+  // Final attempt: let Vapi assign any available US number
   return vapiRequest<VapiPhoneNumberResponse>('POST', '/phone-number', {
     provider: 'vapi',
-    numberDesiredAreaCode: params.areaCode ?? '415',
     fallbackDestination: { type: 'number', number: fallback },
   })
 }
