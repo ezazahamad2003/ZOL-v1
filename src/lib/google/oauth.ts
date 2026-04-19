@@ -11,14 +11,30 @@ const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ]
 
+/**
+ * Must match exactly one URI in Google Cloud → OAuth client → Authorized redirect URIs.
+ * Prefer NEXT_PUBLIC_APP_URL (same as deployed host) so Vercel never uses a stale localhost GOOGLE_OAUTH_REDIRECT_URI.
+ */
+export function getGoogleOAuthRedirectUri(): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '')
+  if (appUrl) {
+    return `${appUrl}/api/google/oauth/callback`
+  }
+  const explicit = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim()
+  if (explicit) return explicit
+  throw new Error(
+    'Set NEXT_PUBLIC_APP_URL or GOOGLE_OAUTH_REDIRECT_URI for Google OAuth (callback URL)'
+  )
+}
+
 function getOAuthClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI
+  const redirectUri = getGoogleOAuthRedirectUri()
 
-  if (!clientId || !clientSecret || !redirectUri) {
+  if (!clientId || !clientSecret) {
     throw new Error(
-      'Missing Google OAuth credentials. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI'
+      'Missing Google OAuth credentials. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET'
     )
   }
 

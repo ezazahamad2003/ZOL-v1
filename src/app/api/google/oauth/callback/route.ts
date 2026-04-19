@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exchangeCodeForTokens, getUserEmail } from '@/lib/google/oauth'
+import {
+  exchangeCodeForTokens,
+  getGoogleOAuthRedirectUri,
+  getUserEmail,
+} from '@/lib/google/oauth'
 import { encrypt } from '@/lib/crypto/encrypt'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { google } from 'googleapis'
@@ -33,7 +37,7 @@ export async function GET(req: NextRequest) {
       const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_OAUTH_REDIRECT_URI
+        getGoogleOAuthRedirectUri()
       )
       oauth2Client.setCredentials({ access_token: tokens.accessToken })
       const cal = google.calendar({ version: 'v3', auth: oauth2Client })
