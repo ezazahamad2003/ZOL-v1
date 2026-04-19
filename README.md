@@ -2,6 +2,8 @@
 
 ZOL automates after-hours calls for mechanic shops. It answers calls 24/7, transcribes them, extracts car details and issues, generates quotes, sends them via Gmail, and books follow-up appointments — all without human intervention.
 
+**Production:** [https://zol-v1.vercel.app](https://zol-v1.vercel.app) · [Sign in](https://zol-v1.vercel.app/login)
+
 ---
 
 ## Tech Stack

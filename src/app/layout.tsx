@@ -13,8 +13,12 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  ),
   title: 'ZOL — AI Receptionist for Mechanic Shops',
-  description: 'Agentic AI platform that handles after-hours calls, extracts details, generates quotes, and manages customer follow-ups.',
+  description:
+    'Agentic AI platform that handles after-hours calls, extracts details, generates quotes, and manages customer follow-ups.',
 }
 
 export default function RootLayout({
