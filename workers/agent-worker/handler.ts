@@ -1,24 +1,24 @@
-import { processCall } from '@/features/calls/process-call'
+import { runIntakeAgent } from '@/agents/intake-agent'
 
 export interface WorkerPayload {
-  shopId: string
+  workspaceId: string
   callId: string
   triggerType: 'call_ended' | 'manual' | 'scheduled'
 }
 
 export async function handleAgentJob(payload: WorkerPayload): Promise<void> {
-  const { shopId, callId, triggerType } = payload
+  const { workspaceId, callId, triggerType } = payload
 
   console.log(JSON.stringify({
     level: 'info',
     message: 'Agent worker: received job',
-    shopId,
+    workspaceId,
     callId,
     triggerType,
   }))
 
   if (triggerType === 'call_ended' || triggerType === 'manual') {
-    await processCall(shopId, callId)
+    await runIntakeAgent(workspaceId, callId)
   } else {
     console.warn(JSON.stringify({
       level: 'warn',
@@ -30,7 +30,7 @@ export async function handleAgentJob(payload: WorkerPayload): Promise<void> {
   console.log(JSON.stringify({
     level: 'info',
     message: 'Agent worker: job complete',
-    shopId,
+    workspaceId,
     callId,
   }))
 }

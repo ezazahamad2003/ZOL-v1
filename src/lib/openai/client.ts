@@ -1,12 +1,8 @@
-import OpenAI from 'openai'
-
-let _client: OpenAI | null = null
-
-export function getOpenAIClient(): OpenAI {
-  if (!_client) {
-    const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
-    _client = new OpenAI({ apiKey })
-  }
-  return _client
+// OpenAI removed in MVP1 — replaced by Anthropic. This file is kept as a
+// placeholder so any stale imports fail with a clear runtime error rather than
+// a module-not-found crash during the transition period.
+export function getOpenAIClient(): never {
+  throw new Error(
+    'OpenAI has been removed from ZOL MVP1. Use getAnthropicClient() from @/lib/anthropic/client instead.'
+  )
 }

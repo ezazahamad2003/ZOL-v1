@@ -51,13 +51,13 @@ function getOAuthClient() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 }
 
-export function getAuthorizationUrl(shopId: string): string {
+export function getAuthorizationUrl(workspaceId: string): string {
   const oauth2Client = getOAuthClient()
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
     prompt: 'consent',
-    state: shopId,
+    state: workspaceId,
   })
 }
 

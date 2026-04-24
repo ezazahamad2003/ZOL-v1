@@ -1,19 +1,19 @@
 'use server'
 
-import { provisionShop } from '@/lib/vapi/provisioning'
+import { provisionWorkspace } from '@/lib/vapi/provisioning'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 export async function provisionVapiAction(formData: FormData) {
-  const shopId = formData.get('shopId') as string
-  if (!shopId) return { error: 'Missing shop ID' }
+  const workspaceId = formData.get('workspaceId') as string ?? formData.get('shopId') as string
+  if (!workspaceId) return { error: 'Missing workspace ID' }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   try {
-    const result = await provisionShop(shopId)
+    const result = await provisionWorkspace(workspaceId)
     return { success: true, phoneNumber: result.phoneNumber }
   } catch (err) {
     return {

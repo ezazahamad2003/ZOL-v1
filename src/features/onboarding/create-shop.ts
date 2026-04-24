@@ -3,26 +3,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
-import type { BusinessHours, PricingConfig, Json } from '@/lib/supabase/types'
+import type { BusinessHours, Json } from '@/lib/supabase/types'
 
-const CreateShopSchema = z.object({
+const CreateWorkspaceSchema = z.object({
   name: z.string().min(2, 'Shop name must be at least 2 characters'),
+  phoneNumber: z.string().optional(),
   humanRedirectNumber: z.string().optional(),
-  laborRate: z.coerce.number().min(0).default(120),
-  partsMarkup: z.coerce.number().min(0).max(1).default(0.3),
-  taxRate: z.coerce.number().min(0).max(0.5).default(0.0875),
+  timezone: z.string().default('America/Los_Angeles'),
 })
 
-export async function createShopAction(_prevState: unknown, formData: FormData) {
+export async function createWorkspaceAction(_prevState: unknown, formData: FormData) {
   const raw = {
     name: formData.get('name'),
+    phoneNumber: formData.get('phoneNumber') || undefined,
     humanRedirectNumber: formData.get('humanRedirectNumber') || undefined,
-    laborRate: formData.get('laborRate'),
-    partsMarkup: formData.get('partsMarkup'),
-    taxRate: formData.get('taxRate'),
+    timezone: formData.get('timezone') || 'America/Los_Angeles',
   }
 
-  const parsed = CreateShopSchema.safeParse(raw)
+  const parsed = CreateWorkspaceSchema.safeParse(raw)
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
@@ -31,13 +29,6 @@ export async function createShopAction(_prevState: unknown, formData: FormData) 
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
-
-  const pricingConfig: PricingConfig = {
-    labor_rate: parsed.data.laborRate,
-    parts_markup: parsed.data.partsMarkup,
-    tax_rate: parsed.data.taxRate,
-    common_services: [],
-  }
 
   const defaultBusinessHours: BusinessHours = {
     mon: { open: '08:00', close: '17:00' },
@@ -48,19 +39,23 @@ export async function createShopAction(_prevState: unknown, formData: FormData) 
   }
 
   const { data, error } = await supabase
-    .from('shops')
+    .from('workspaces')
     .insert({
       name: parsed.data.name,
-      owner_user_id: user.id,
+      owner_id: user.id,
+      phone_number: parsed.data.phoneNumber ?? null,
       human_redirect_number: parsed.data.humanRedirectNumber ?? null,
-      pricing_config: pricingConfig as unknown as Json,
+      timezone: parsed.data.timezone,
       business_hours: defaultBusinessHours as unknown as Json,
-      onboarding_status: 'pending',
+      status: 'onboarding',
     })
     .select()
     .single()
 
   if (error) return { error: error.message }
 
-  redirect(`/connect-google?shopId=${data.id}`)
+  redirect(`/onboarding?workspaceId=${data.id}&step=vapi`)
 }
+
+// Alias so any remaining pages still importing createShopAction keep compiling
+export const createShopAction = createWorkspaceAction

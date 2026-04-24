@@ -2,16 +2,23 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import {
-  LayoutDashboard, Phone, FileText, Users, Activity, Settings, Wrench, LogOut
+  LayoutDashboard,
+  Phone,
+  Calendar,
+  Mail,
+  TrendingUp,
+  Settings,
+  Wrench,
+  LogOut,
 } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/calls', label: 'Calls', icon: Phone },
-  { href: '/quotes', label: 'Quotes', icon: FileText },
-  { href: '/customers', label: 'Customers', icon: Users },
-  { href: '/runs', label: 'Agent Runs', icon: Activity },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard/calls', label: 'Calls', icon: Phone },
+  { href: '/dashboard/appointments', label: 'Appointments', icon: Calendar },
+  { href: '/dashboard/follow-ups', label: 'Follow-ups', icon: Mail },
+  { href: '/dashboard/insights', label: 'Insights', icon: TrendingUp },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
 export default async function DashboardLayout({
@@ -23,11 +30,15 @@ export default async function DashboardLayout({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: shop } = await supabase
-    .from('shops')
-    .select('name, phone_number, onboarding_status')
-    .eq('owner_user_id', user.id)
+  const { data: workspace } = await supabase
+    .from('workspaces')
+    .select('name, vapi_phone_number, status')
+    .eq('owner_id', user.id)
     .maybeSingle()
+
+  if (!workspace || workspace.status === 'onboarding') {
+    redirect('/onboarding')
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -39,9 +50,9 @@ export default async function DashboardLayout({
             <Wrench className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 truncate">{shop?.name ?? 'ZOL'}</p>
-            {shop?.phone_number && (
-              <p className="text-xs text-gray-500 font-mono">{shop.phone_number}</p>
+            <p className="text-sm font-bold text-gray-900 truncate">{workspace.name ?? 'ZOL'}</p>
+            {workspace.vapi_phone_number && (
+              <p className="text-xs text-gray-500 font-mono">{workspace.vapi_phone_number}</p>
             )}
           </div>
         </div>

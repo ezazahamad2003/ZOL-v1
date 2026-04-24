@@ -21,15 +21,14 @@ export default async function RootPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (user) {
-    const { data: shop } = await supabase
-      .from('shops')
-      .select('id, onboarding_status')
-      .eq('owner_user_id', user.id)
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('id, status')
+      .eq('owner_id', user.id)
       .maybeSingle()
 
-    if (!shop) redirect('/create-shop')
-    if (shop.onboarding_status === 'pending') redirect('/create-shop')
-    if (shop.onboarding_status === 'google_connected') redirect('/provision-phone')
+    if (!workspace) redirect('/onboarding')
+    if (workspace.status === 'onboarding') redirect('/onboarding')
     redirect('/dashboard')
   }
 

@@ -1,19 +1,21 @@
 /**
- * Identifies which shop a Vapi webhook belongs to
- * by looking up vapi_phone_number_id in the shops table.
+ * Identifies which workspace a Vapi webhook belongs to
+ * by looking up vapi_phone_number_id in the workspaces table.
  * Uses admin client — this runs in webhook route (unauthenticated).
+ *
+ * @deprecated Use inline query in vapi webhook route instead.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { Shop } from '@/lib/supabase/types'
+import type { Workspace } from '@/lib/supabase/types'
 
 export async function identifyShopByPhoneNumberId(
   vapiPhoneNumberId: string
-): Promise<Shop | null> {
+): Promise<Workspace | null> {
   const admin = createAdminClient()
 
   const { data, error } = await admin
-    .from('shops')
+    .from('workspaces')
     .select('*')
     .eq('vapi_phone_number_id', vapiPhoneNumberId)
     .maybeSingle()

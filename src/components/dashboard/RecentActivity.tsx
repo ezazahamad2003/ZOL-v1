@@ -1,31 +1,37 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { formatDate, formatCurrency, statusColor } from '@/lib/utils'
-import type { Call, Quote, AgentRun } from '@/lib/supabase/types'
+import { formatDate } from '@/lib/utils'
+import type { Call, Appointment, FollowUp } from '@/lib/supabase/types'
 
 interface RecentActivityProps {
   calls: Call[]
-  quotes: Quote[]
-  runs: AgentRun[]
+  appointments: Appointment[]
+  followUps: FollowUp[]
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, 'default' | 'success' | 'destructive' | 'warning' | 'secondary'> = {
-    active: 'default',
-    completed: 'success',
-    done: 'success',
-    failed: 'destructive',
-    running: 'warning',
-    sent: 'default',
-    accepted: 'success',
-    rejected: 'destructive',
-    draft: 'secondary',
-  }
-  return <Badge variant={colors[status] ?? 'secondary'}>{status}</Badge>
+const sentimentVariants: Record<string, 'default' | 'success' | 'destructive' | 'warning' | 'secondary'> = {
+  positive: 'success',
+  neutral: 'secondary',
+  negative: 'warning',
+  frustrated: 'destructive',
 }
 
-export function RecentActivity({ calls, quotes, runs }: RecentActivityProps) {
+const appointmentVariants: Record<string, 'default' | 'success' | 'destructive' | 'warning' | 'secondary'> = {
+  scheduled: 'default',
+  completed: 'success',
+  cancelled: 'destructive',
+  no_show: 'warning',
+}
+
+const followUpVariants: Record<string, 'default' | 'success' | 'destructive' | 'warning' | 'secondary'> = {
+  pending: 'warning',
+  sent: 'default',
+  responded: 'success',
+  expired: 'secondary',
+}
+
+export function RecentActivity({ calls, appointments, followUps }: RecentActivityProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card>
@@ -35,14 +41,44 @@ export function RecentActivity({ calls, quotes, runs }: RecentActivityProps) {
         <CardContent className="space-y-3">
           {calls.length === 0 && <p className="text-sm text-gray-500">No calls yet</p>}
           {calls.map((call) => (
-            <Link key={call.id} href={`/calls/${call.id}`} className="block rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors">
+            <Link key={call.id} href={`/dashboard/calls/${call.id}`} className="block rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-gray-900 truncate">
+                  {call.caller_name ?? call.caller_phone ?? call.id.slice(0, 8)}
+                </span>
+                {call.sentiment && (
+                  <Badge variant={sentimentVariants[call.sentiment] ?? 'secondary'} className="text-xs shrink-0">
+                    {call.sentiment}
+                  </Badge>
+                )}
+              </div>
+              {call.summary && (
+                <p className="mt-1 text-xs text-gray-500 line-clamp-1">{call.summary}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-400">{formatDate(call.created_at)}</p>
+            </Link>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Upcoming Appointments</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {appointments.length === 0 && <p className="text-sm text-gray-500">No appointments yet</p>}
+          {appointments.map((appt) => (
+            <Link key={appt.id} href="/dashboard/appointments" className="block rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-900 truncate">
-                  {call.vapi_call_id ?? call.id.slice(0, 8)}
+                  {appt.customer_name ?? 'Unknown'}
                 </span>
-                <StatusBadge status={call.status} />
+                <Badge variant={appointmentVariants[appt.status] ?? 'secondary'} className="text-xs">{appt.status}</Badge>
               </div>
-              <p className="mt-1 text-xs text-gray-500">{formatDate(call.created_at)}</p>
+              {appt.service_type && (
+                <p className="mt-1 text-xs text-gray-500">{appt.service_type}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-400">{formatDate(appt.scheduled_at)}</p>
             </Link>
           ))}
         </CardContent>
@@ -50,35 +86,21 @@ export function RecentActivity({ calls, quotes, runs }: RecentActivityProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recent Quotes</CardTitle>
+          <CardTitle className="text-base">Follow-Ups</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {quotes.length === 0 && <p className="text-sm text-gray-500">No quotes yet</p>}
-          {quotes.map((quote) => (
-            <Link key={quote.id} href={`/quotes/${quote.id}`} className="block rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors">
+          {followUps.length === 0 && <p className="text-sm text-gray-500">No follow-ups yet</p>}
+          {followUps.map((fu) => (
+            <Link key={fu.id} href="/dashboard/follow-ups" className="block rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-gray-900">{formatCurrency(quote.total)}</span>
-                <StatusBadge status={quote.status} />
+                <span className="text-sm font-medium text-gray-900 truncate">
+                  {fu.customer_email ?? fu.customer_phone ?? 'Unknown'}
+                </span>
+                <Badge variant={followUpVariants[fu.status] ?? 'secondary'} className="text-xs">{fu.status}</Badge>
               </div>
-              <p className="mt-1 text-xs text-gray-500">{formatDate(quote.created_at)}</p>
-            </Link>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Agent Runs</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {runs.length === 0 && <p className="text-sm text-gray-500">No runs yet</p>}
-          {runs.map((run) => (
-            <Link key={run.id} href={`/runs/${run.id}`} className="block rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-900">{run.trigger_type}</span>
-                <StatusBadge status={run.status} />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">{formatDate(run.started_at)}</p>
+              <p className="mt-1 text-xs text-gray-400">
+                #{fu.follow_up_number} · {formatDate(fu.scheduled_for)}
+              </p>
             </Link>
           ))}
         </CardContent>

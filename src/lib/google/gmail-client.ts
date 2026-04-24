@@ -1,7 +1,6 @@
 /**
- * Per-shop Gmail client factory.
- * Fetches the shop's encrypted refresh token, decrypts it,
- * and returns an authenticated Gmail API client.
+ * Per-workspace Gmail client factory.
+ * Reads tokens from integrations table (provider: 'gmail').
  */
 
 import { google } from 'googleapis'
@@ -16,20 +15,27 @@ export interface SendEmailParams {
   fromName?: string
 }
 
-async function getGmailClient(shopId: string) {
+async function getGmailClient(workspaceId: string) {
   const admin = createAdminClient()
-  const { data: shop, error } = await admin
-    .from('shops')
-    .select('google_refresh_token_encrypted, google_email')
-    .eq('id', shopId)
-    .single()
 
-  if (error || !shop) throw new Error(`Shop ${shopId} not found`)
-  if (!shop.google_refresh_token_encrypted) {
-    throw new Error(`Shop ${shopId} has no Google credentials. Complete Google OAuth first.`)
+  const { data: integration, error } = await admin
+    .from('integrations')
+    .select('refresh_token, metadata')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'gmail')
+    .eq('status', 'connected')
+    .maybeSingle()
+
+  if (error || !integration) {
+    throw new Error(`Workspace ${workspaceId} has no Gmail integration. Complete Google OAuth first.`)
+  }
+  if (!integration.refresh_token) {
+    throw new Error(`Workspace ${workspaceId} Gmail integration has no refresh token.`)
   }
 
-  const refreshToken = decrypt(shop.google_refresh_token_encrypted)
+  const refreshToken = decrypt(integration.refresh_token)
+  const metadata = (integration.metadata ?? {}) as Record<string, string>
+  const fromEmail = metadata.email ?? 'noreply@zol.ai'
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -40,7 +46,7 @@ async function getGmailClient(shopId: string) {
 
   return {
     gmail: google.gmail({ version: 'v1', auth: oauth2Client }),
-    fromEmail: shop.google_email ?? 'noreply@zol.ai',
+    fromEmail,
   }
 }
 
@@ -64,10 +70,10 @@ function buildRawEmail(params: {
 }
 
 export async function sendEmail(
-  shopId: string,
+  workspaceId: string,
   params: SendEmailParams
 ): Promise<string> {
-  const { gmail, fromEmail } = await getGmailClient(shopId)
+  const { gmail, fromEmail } = await getGmailClient(workspaceId)
 
   const raw = buildRawEmail({
     from: params.fromName ? `${params.fromName} <${fromEmail}>` : fromEmail,

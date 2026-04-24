@@ -11,23 +11,24 @@ import { google } from 'googleapis'
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
-  const state = searchParams.get('state')  // shopId
+  const state = searchParams.get('state')  // workspaceId
   const error = searchParams.get('error')
 
   if (error) {
     return NextResponse.redirect(
-      new URL(`/connect-google?error=${encodeURIComponent(error)}&shopId=${state}`, req.url)
+      new URL(`/onboarding?error=${encodeURIComponent(error)}&step=3`, req.url)
     )
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL('/connect-google?error=missing_params', req.url))
+    return NextResponse.redirect(new URL('/onboarding?error=missing_params&step=3', req.url))
   }
 
   try {
     const tokens = await exchangeCodeForTokens(code)
     const email = await getUserEmail(tokens.accessToken)
     const encryptedRefreshToken = encrypt(tokens.refreshToken)
+    const encryptedAccessToken = encrypt(tokens.accessToken)
 
     const admin = createAdminClient()
 
@@ -45,24 +46,56 @@ export async function GET(req: NextRequest) {
       calendarId = data.id ?? 'primary'
     } catch { /* use primary fallback */ }
 
+    const expiresAt = tokens.expiry
+      ? new Date(tokens.expiry).toISOString()
+      : new Date(Date.now() + 3600 * 1000).toISOString()
+
+    // Upsert google_calendar integration
     await admin
-      .from('shops')
-      .update({
-        google_email: email,
-        google_refresh_token_encrypted: encryptedRefreshToken,
-        google_calendar_id: calendarId,
-        onboarding_status: 'google_connected',
-      })
+      .from('integrations')
+      .upsert(
+        {
+          workspace_id: state,
+          provider: 'google_calendar',
+          access_token: encryptedAccessToken,
+          refresh_token: encryptedRefreshToken,
+          expires_at: expiresAt,
+          metadata: { calendar_id: calendarId, email },
+          status: 'connected',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'workspace_id,provider' }
+      )
+
+    // Upsert gmail integration (same tokens)
+    await admin
+      .from('integrations')
+      .upsert(
+        {
+          workspace_id: state,
+          provider: 'gmail',
+          access_token: encryptedAccessToken,
+          refresh_token: encryptedRefreshToken,
+          expires_at: expiresAt,
+          metadata: { email },
+          status: 'connected',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'workspace_id,provider' }
+      )
+
+    // Mark workspace as active
+    await admin
+      .from('workspaces')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
       .eq('id', state)
 
-    return NextResponse.redirect(
-      new URL(`/provision-phone?shopId=${state}`, req.url)
-    )
+    return NextResponse.redirect(new URL(`/dashboard`, req.url))
   } catch (err) {
     const message = err instanceof Error ? err.message : 'OAuth failed'
     console.error('[google/oauth/callback]', message)
     return NextResponse.redirect(
-      new URL(`/connect-google?error=${encodeURIComponent(message)}&shopId=${state}`, req.url)
+      new URL(`/onboarding?error=${encodeURIComponent(message)}&step=3`, req.url)
     )
   }
 }

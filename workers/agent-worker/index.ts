@@ -2,7 +2,7 @@
  * Cloud Run entrypoint for the ZOL agent worker.
  * Receives Cloud Tasks HTTP requests and processes agent jobs.
  *
- * Cloud Tasks sends: POST /handle with JSON body { shopId, callId, triggerType }
+ * Cloud Tasks sends: POST /handle with JSON body { workspaceId, callId, triggerType }
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'http'
@@ -50,9 +50,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return
   }
 
-  if (!payload.shopId || !payload.callId || !payload.triggerType) {
+  if (!payload.workspaceId || !payload.callId || !payload.triggerType) {
     res.writeHead(400)
-    res.end(JSON.stringify({ error: 'Missing required fields: shopId, callId, triggerType' }))
+    res.end(JSON.stringify({ error: 'Missing required fields: workspaceId, callId, triggerType' }))
     return
   }
 
@@ -66,7 +66,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       level: 'error',
       message: 'Agent worker: unhandled error',
       error: err instanceof Error ? err.message : String(err),
-      shopId: payload.shopId,
+      workspaceId: payload.workspaceId,
       callId: payload.callId,
     }))
   })

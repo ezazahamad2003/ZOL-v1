@@ -2,7 +2,13 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const EXACT_PUBLIC_PATHS = ['/']
-const PREFIX_PUBLIC_PATHS = ['/login', '/signup', '/api/vapi/webhook', '/api/google/oauth/callback', '/api/auth']
+const PREFIX_PUBLIC_PATHS = [
+  '/login',
+  '/signup',
+  '/api/vapi/webhook',
+  '/api/google/oauth/callback',
+  '/api/auth',
+]
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })

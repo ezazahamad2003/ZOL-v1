@@ -1,77 +1,167 @@
 /**
- * Intake agent — orchestrates tools for call intake processing.
- * Flow: extract_call_details → upsert_customer → calculate_quote → send_quote_email → book_followup
+ * Intake agent — runs after a call ends.
+ *
+ * Flow:
+ * 1. Extract caller info, vehicle, sentiment, summary, action items from transcript
+ * 2. Detect pain points → insert into call_insights
+ * 3. If appointment requested → create in appointments + Google Calendar
+ * 4. If follow-up needed → create emails + follow_ups records
+ * 5. Log all steps to agent_steps via orchestrator
  */
 
+import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAnthropicClient } from '@/lib/anthropic/client'
 import { runOrchestrator } from './orchestrator'
-import { extractCallDetailsTool } from './tools/extract-call-details'
-import { calculateQuoteTool } from './tools/calculate-quote'
-import { upsertCustomerTool } from './tools/upsert-customer'
-import { sendQuoteEmailTool } from './tools/send-quote-email'
-import { bookFollowupTool } from './tools/book-followup'
-import type { ShopContext, OrchestratorResult } from './types'
-import type { BusinessHours, PricingConfig, Customer } from '@/lib/supabase/types'
+import { queryCallsTool } from './tools/query-calls'
+import { getCallTranscriptTool } from './tools/get-call-transcript'
+import { queryAppointmentsTool } from './tools/query-appointments'
+import { bookAppointmentTool } from './tools/book-appointment'
+import { cancelAppointmentTool } from './tools/cancel-appointment'
+import { checkAvailabilityTool } from './tools/check-availability'
+import { sendEmailTool } from './tools/send-email'
+import { draftEmailTool } from './tools/draft-email'
+import { queryFollowUpsTool } from './tools/query-follow-ups'
+import { triggerFollowUpTool } from './tools/trigger-follow-up'
+import { getInsightsTool } from './tools/get-insights'
+import type { WorkspaceContext, OrchestratorResult } from './types'
+import type { BusinessHours, VehicleInfo, Json } from '@/lib/supabase/types'
 import { decrypt } from '@/lib/crypto/encrypt'
 
-async function buildShopContext(shopId: string, callId: string): Promise<ShopContext> {
+// ─── Structured extraction from transcript ────────────────────────────────────
+
+interface CallExtraction {
+  callerName: string | null
+  callerPhone: string | null
+  callerEmail: string | null
+  vehicleInfo: VehicleInfo | null
+  summary: string | null
+  sentiment: 'positive' | 'neutral' | 'negative' | 'frustrated' | null
+  actionItems: string[]
+  appointmentRequested: boolean
+  appointmentDate: string | null     // ISO date hint from conversation
+  followUpNeeded: boolean
+  painPoints: Array<{ content: string; urgency: 'low' | 'medium' | 'high' | 'emergency' }>
+  serviceRequests: Array<{ content: string; urgency: 'low' | 'medium' | 'high' | 'emergency' }>
+}
+
+async function extractCallData(transcript: unknown, workspaceName: string): Promise<CallExtraction> {
+  const anthropic = getAnthropicClient()
+
+  const transcriptText = typeof transcript === 'string'
+    ? transcript
+    : JSON.stringify(transcript)
+
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-5',
+    max_tokens: 1024,
+    system: `You are a data extraction assistant for ${workspaceName} mechanic shop.
+Extract structured information from call transcripts. Return ONLY valid JSON — no markdown.`,
+    messages: [
+      {
+        role: 'user',
+        content: `Transcript:\n${transcriptText}\n\nReturn JSON with this exact shape:
+{
+  "callerName": string | null,
+  "callerPhone": string | null,
+  "callerEmail": string | null,
+  "vehicleInfo": { "make": string | null, "model": string | null, "year": number | null, "plate": string | null } | null,
+  "summary": string | null,
+  "sentiment": "positive" | "neutral" | "negative" | "frustrated" | null,
+  "actionItems": string[],
+  "appointmentRequested": boolean,
+  "appointmentDate": string | null,
+  "followUpNeeded": boolean,
+  "painPoints": [{ "content": string, "urgency": "low" | "medium" | "high" | "emergency" }],
+  "serviceRequests": [{ "content": string, "urgency": "low" | "medium" | "high" | "emergency" }]
+}`,
+      },
+    ],
+  })
+
+  const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')
+  const raw = textBlock?.text ?? '{}'
+
+  try {
+    return JSON.parse(raw) as CallExtraction
+  } catch {
+    return {
+      callerName: null, callerPhone: null, callerEmail: null, vehicleInfo: null,
+      summary: null, sentiment: null, actionItems: [], appointmentRequested: false,
+      appointmentDate: null, followUpNeeded: false, painPoints: [], serviceRequests: [],
+    }
+  }
+}
+
+// ─── Build workspace context ──────────────────────────────────────────────────
+
+async function buildWorkspaceContext(workspaceId: string, callId: string): Promise<WorkspaceContext> {
   const admin = createAdminClient()
 
-  const [shopRes, customersRes, callRes] = await Promise.all([
-    admin.from('shops').select('*').eq('id', shopId).single(),
-    admin.from('customers').select('*').eq('shop_id', shopId).order('created_at', { ascending: false }).limit(50),
+  const [workspaceRes, callRes, integrationRes] = await Promise.all([
+    admin.from('workspaces').select('*').eq('id', workspaceId).single(),
     admin.from('calls').select('*').eq('id', callId).single(),
+    admin
+      .from('integrations')
+      .select('provider, access_token, refresh_token')
+      .eq('workspace_id', workspaceId)
+      .in('provider', ['google_calendar', 'gmail'])
+      .eq('status', 'connected'),
   ])
 
-  if (shopRes.error || !shopRes.data) throw new Error(`Shop ${shopId} not found`)
+  if (workspaceRes.error || !workspaceRes.data) {
+    throw new Error(`Workspace ${workspaceId} not found`)
+  }
 
-  const shop = shopRes.data
+  const workspace = workspaceRes.data
   let googleTokens: { accessToken?: string; refreshToken?: string } = {}
 
-  if (shop.google_refresh_token_encrypted) {
+  const calendarIntegration = integrationRes.data?.find((i) => i.provider === 'google_calendar')
+  if (calendarIntegration?.refresh_token) {
     try {
-      const refreshToken = decrypt(shop.google_refresh_token_encrypted)
-      googleTokens = { refreshToken }
+      googleTokens = { refreshToken: decrypt(calendarIntegration.refresh_token) }
     } catch {
-      // Encryption key may not be configured yet
+      // Encryption key may not be configured
     }
   }
 
   return {
-    shopId: shop.id,
-    shopName: shop.name,
-    pricingConfig: (shop.pricing_config as PricingConfig) ?? {},
-    businessHours: (shop.business_hours as BusinessHours) ?? {},
-    recentCustomers: (customersRes.data ?? []) as Customer[],
+    workspaceId: workspace.id,
+    workspaceName: workspace.name,
+    businessHours: (workspace.business_hours as BusinessHours) ?? {},
     currentCall: callRes.data
       ? {
           id: callRes.data.id,
           vapi_call_id: callRes.data.vapi_call_id,
           transcript: callRes.data.transcript,
-          started_at: callRes.data.started_at,
-          ended_at: callRes.data.ended_at,
+          caller_phone: callRes.data.caller_phone,
+          caller_name: callRes.data.caller_name,
           status: callRes.data.status,
+          created_at: callRes.data.created_at,
         }
       : undefined,
     googleTokens,
   }
 }
 
+// ─── Main intake agent ────────────────────────────────────────────────────────
+
 export async function runIntakeAgent(
-  shopId: string,
+  workspaceId: string,
   callId: string
 ): Promise<OrchestratorResult> {
   const admin = createAdminClient()
 
-  // Create the agent_run record
+  // Create agent_run record
   const { data: runRecord, error: runErr } = await admin
     .from('agent_runs')
     .insert({
-      shop_id: shopId,
-      trigger_type: 'call_ended',
-      trigger_ref_id: callId,
-      input: { shopId, callId },
+      workspace_id: workspaceId,
+      trigger_type: 'call',
+      trigger_ref: callId,
+      user_prompt: `Process completed call ${callId} — extract details, log insights, schedule follow-ups`,
       status: 'running',
+      started_at: new Date().toISOString(),
     })
     .select('id')
     .single()
@@ -80,23 +170,109 @@ export async function runIntakeAgent(
     throw new Error(`Failed to create agent run: ${runErr?.message}`)
   }
 
-  const ctx = await buildShopContext(shopId, callId)
+  // Fetch call transcript
+  const { data: callData } = await admin
+    .from('calls')
+    .select('transcript, caller_phone')
+    .eq('id', callId)
+    .single()
 
+  const transcript = callData?.transcript
+
+  // Step 1: Extract structured data from transcript
+  const ctx = await buildWorkspaceContext(workspaceId, callId)
+  const extraction = await extractCallData(transcript, ctx.workspaceName)
+
+  // Step 2: Update call with extracted info
+  await admin
+    .from('calls')
+    .update({
+      caller_name: extraction.callerName,
+      caller_phone: extraction.callerPhone ?? callData?.caller_phone,
+      caller_email: extraction.callerEmail,
+      vehicle_info: (extraction.vehicleInfo ?? null) as Json,
+      summary: extraction.summary,
+      sentiment: extraction.sentiment,
+      action_items: (extraction.actionItems.length > 0 ? extraction.actionItems : null) as Json,
+    })
+    .eq('id', callId)
+
+  // Step 3: Insert call insights
+  const insights: Array<{ call_id: string; insight_type: string; content: string; urgency: string }> = [
+    ...extraction.painPoints.map((p) => ({
+      call_id: callId,
+      insight_type: 'pain_point',
+      content: p.content,
+      urgency: p.urgency,
+    })),
+    ...extraction.serviceRequests.map((s) => ({
+      call_id: callId,
+      insight_type: 'service_request',
+      content: s.content,
+      urgency: s.urgency,
+    })),
+  ]
+
+  if (insights.length > 0) {
+    await admin.from('call_insights').insert(insights)
+  }
+
+  // Build user prompt for orchestrator based on extraction results
+  const orchestratorPrompt = buildOrchestratorPrompt(
+    workspaceId, callId, extraction, ctx.workspaceName
+  )
+
+  // Step 4: Run orchestrator for appointment/follow-up tasks
   return runOrchestrator({
     runId: runRecord.id,
     ctx,
-    input: {
-      shopId,
-      callId,
-      transcript: ctx.currentCall?.transcript ?? '',
-      shopName: ctx.shopName,
-    },
+    userPrompt: orchestratorPrompt,
     tools: [
-      extractCallDetailsTool,
-      upsertCustomerTool,
-      calculateQuoteTool,
-      sendQuoteEmailTool,
-      bookFollowupTool,
+      queryCallsTool,
+      getCallTranscriptTool,
+      queryAppointmentsTool,
+      bookAppointmentTool,
+      cancelAppointmentTool,
+      checkAvailabilityTool,
+      sendEmailTool,
+      draftEmailTool,
+      queryFollowUpsTool,
+      triggerFollowUpTool,
+      getInsightsTool,
     ],
   })
+}
+
+function buildOrchestratorPrompt(
+  workspaceId: string,
+  callId: string,
+  extraction: CallExtraction,
+  workspaceName: string
+): string {
+  const parts = [
+    `A call has just completed at ${workspaceName} (workspace: ${workspaceId}, call: ${callId}).`,
+    `Caller: ${extraction.callerName ?? 'Unknown'}, Phone: ${extraction.callerPhone ?? 'Unknown'}, Email: ${extraction.callerEmail ?? 'Unknown'}`,
+    `Summary: ${extraction.summary ?? 'No summary'}`,
+    `Sentiment: ${extraction.sentiment ?? 'unknown'}`,
+  ]
+
+  if (extraction.appointmentRequested) {
+    parts.push(
+      `The caller requested an appointment${extraction.appointmentDate ? ` around ${extraction.appointmentDate}` : ''}.`,
+      `Please check availability and book an appointment if possible.`
+    )
+  }
+
+  if (extraction.followUpNeeded) {
+    parts.push(
+      `A follow-up is needed for this caller.`,
+      `Please trigger a follow-up for this call.`
+    )
+  }
+
+  if (!extraction.appointmentRequested && !extraction.followUpNeeded) {
+    parts.push('No immediate actions are needed. Acknowledge the call was processed.')
+  }
+
+  return parts.join('\n')
 }

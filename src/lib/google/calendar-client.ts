@@ -1,6 +1,6 @@
 /**
- * Per-shop Google Calendar client factory.
- * Same token pattern as gmail-client.ts.
+ * Per-workspace Google Calendar client factory.
+ * Reads tokens from integrations table (provider: 'google_calendar').
  */
 
 import { google } from 'googleapis'
@@ -16,20 +16,27 @@ export interface CreateEventParams {
   attendeeEmail?: string
 }
 
-async function getCalendarClient(shopId: string) {
+async function getCalendarClient(workspaceId: string) {
   const admin = createAdminClient()
-  const { data: shop, error } = await admin
-    .from('shops')
-    .select('google_refresh_token_encrypted, google_calendar_id')
-    .eq('id', shopId)
-    .single()
 
-  if (error || !shop) throw new Error(`Shop ${shopId} not found`)
-  if (!shop.google_refresh_token_encrypted) {
-    throw new Error(`Shop ${shopId} has no Google credentials. Complete Google OAuth first.`)
+  const { data: integration, error } = await admin
+    .from('integrations')
+    .select('refresh_token, metadata')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'google_calendar')
+    .eq('status', 'connected')
+    .maybeSingle()
+
+  if (error || !integration) {
+    throw new Error(`Workspace ${workspaceId} has no Google Calendar integration. Complete Google OAuth first.`)
+  }
+  if (!integration.refresh_token) {
+    throw new Error(`Workspace ${workspaceId} Google Calendar integration has no refresh token.`)
   }
 
-  const refreshToken = decrypt(shop.google_refresh_token_encrypted)
+  const refreshToken = decrypt(integration.refresh_token)
+  const metadata = (integration.metadata ?? {}) as Record<string, string>
+  const calendarId = metadata.calendar_id ?? 'primary'
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -40,15 +47,15 @@ async function getCalendarClient(shopId: string) {
 
   return {
     calendar: google.calendar({ version: 'v3', auth: oauth2Client }),
-    calendarId: shop.google_calendar_id ?? 'primary',
+    calendarId,
   }
 }
 
 export async function createCalendarEvent(
-  shopId: string,
+  workspaceId: string,
   params: CreateEventParams
 ): Promise<string> {
-  const { calendar, calendarId } = await getCalendarClient(shopId)
+  const { calendar, calendarId } = await getCalendarClient(workspaceId)
 
   const event = await calendar.events.insert({
     calendarId,
@@ -72,9 +79,9 @@ export async function createCalendarEvent(
 }
 
 export async function deleteCalendarEvent(
-  shopId: string,
+  workspaceId: string,
   eventId: string
 ): Promise<void> {
-  const { calendar, calendarId } = await getCalendarClient(shopId)
+  const { calendar, calendarId } = await getCalendarClient(workspaceId)
   await calendar.events.delete({ calendarId, eventId })
 }
