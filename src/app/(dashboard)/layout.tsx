@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
@@ -8,7 +9,6 @@ import {
   Mail,
   TrendingUp,
   Settings,
-  Wrench,
   LogOut,
 } from 'lucide-react'
 
@@ -46,9 +46,7 @@ export default async function DashboardLayout({
       <aside className="flex w-64 flex-col border-r border-gray-200 bg-white">
         {/* Logo */}
         <div className="flex h-16 items-center gap-3 border-b border-gray-200 px-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-            <Wrench className="h-5 w-5 text-white" />
-          </div>
+          <Image src="/zol-logo.png" alt="ZOL" width={32} height={32} className="rounded-lg shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-bold text-gray-900 truncate">{workspace.name ?? 'ZOL'}</p>
             {workspace.vapi_phone_number && (

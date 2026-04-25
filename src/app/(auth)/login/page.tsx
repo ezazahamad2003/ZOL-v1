@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Wrench } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,9 +39,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="flex flex-col items-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600">
-            <Wrench className="h-7 w-7 text-white" />
-          </div>
+          <Image src="/zol-logo.png" alt="ZOL" width={48} height={48} className="rounded-xl" />
           <h1 className="mt-4 text-2xl font-bold text-gray-900">ZOL</h1>
           <p className="text-sm text-gray-500">AI Receptionist for Mechanic Shops</p>
         </div>

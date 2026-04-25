@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Wrench, Building2, Phone, Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { Building2, Phone, Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -356,9 +357,7 @@ export default function OnboardingPage({
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-lg space-y-6">
         <div className="flex flex-col items-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600">
-            <Wrench className="h-7 w-7 text-white" />
-          </div>
+          <Image src="/zol-logo.png" alt="ZOL" width={48} height={48} className="rounded-xl" />
           <h1 className="mt-4 text-2xl font-bold text-gray-900">Set Up ZOL</h1>
           <p className="mt-1 text-sm text-gray-500">Get your AI receptionist running in minutes</p>
         </div>
