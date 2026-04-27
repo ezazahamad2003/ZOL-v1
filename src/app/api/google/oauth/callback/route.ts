@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
       .update({ status: 'active', updated_at: new Date().toISOString() })
       .eq('id', state)
 
-    return NextResponse.redirect(new URL(`/dashboard`, req.url))
+    return NextResponse.redirect(new URL(`/`, req.url))
   } catch (err) {
     const message = err instanceof Error ? err.message : 'OAuth failed'
     console.error('[google/oauth/callback]', message)

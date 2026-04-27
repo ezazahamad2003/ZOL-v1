@@ -79,13 +79,15 @@ export function AgentCommandBox({ workspaceId }: AgentCommandBoxProps) {
   const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Poll for agent steps
+  const activeRunId = run?.status === 'running' ? run.runId : null
+
+  // Poll for agent steps while a run is active
   useEffect(() => {
-    if (!run || run.status !== 'running') return
+    if (!activeRunId) return
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/agent/status?runId=${run.runId}`)
+        const res = await fetch(`/api/agent/status?runId=${activeRunId}`)
         const data = await res.json() as {
           status?: string
           steps?: AgentStep[]
@@ -111,7 +113,7 @@ export function AgentCommandBox({ workspaceId }: AgentCommandBoxProps) {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [run?.runId, run?.status])
+  }, [activeRunId])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

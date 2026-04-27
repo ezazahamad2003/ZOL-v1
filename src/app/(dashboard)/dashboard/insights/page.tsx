@@ -98,7 +98,10 @@ export default async function InsightsPage() {
               {painPoints.map((i) => (
                 <div key={i.id} className="rounded-lg border border-gray-100 p-3 space-y-1">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm text-gray-700">{i.content}</p>
+                    <div className="flex items-start gap-1.5">
+                      <InsightTypeIcon type={i.insight_type} />
+                      <p className="text-sm text-gray-700">{i.content}</p>
+                    </div>
                     <UrgencyBadge urgency={i.urgency} />
                   </div>
                   <p className="text-xs text-gray-400">{formatDate(i.created_at)}</p>
@@ -120,7 +123,10 @@ export default async function InsightsPage() {
               {serviceRequests.map((i) => (
                 <div key={i.id} className="rounded-lg border border-gray-100 p-3 space-y-1">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm text-gray-700">{i.content}</p>
+                    <div className="flex items-start gap-1.5">
+                      <InsightTypeIcon type={i.insight_type} />
+                      <p className="text-sm text-gray-700">{i.content}</p>
+                    </div>
                     <UrgencyBadge urgency={i.urgency} />
                   </div>
                   <p className="text-xs text-gray-400">{formatDate(i.created_at)}</p>
@@ -141,7 +147,10 @@ export default async function InsightsPage() {
               {feedback.length === 0 && <p className="text-sm text-gray-400">None detected</p>}
               {feedback.map((i) => (
                 <div key={i.id} className="rounded-lg border border-gray-100 p-3 space-y-1">
-                  <p className="text-sm text-gray-700">{i.content}</p>
+                  <div className="flex items-start gap-1.5">
+                    <InsightTypeIcon type={i.insight_type} />
+                    <p className="text-sm text-gray-700">{i.content}</p>
+                  </div>
                   <p className="text-xs text-gray-400">{formatDate(i.created_at)}</p>
                 </div>
               ))}

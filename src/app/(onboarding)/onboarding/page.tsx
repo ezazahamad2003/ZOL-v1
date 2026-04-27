@@ -265,11 +265,6 @@ function Step3({
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  const isGoogleConfigured = !!(
-    typeof window !== 'undefined' &&
-    process.env.NEXT_PUBLIC_GOOGLE_CONFIGURED === 'true'
-  )
-
   async function handleConnect() {
     setLoading(true)
     const res = await fetch(`/api/google/oauth/start?workspaceId=${workspaceId}`)
