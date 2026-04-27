@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Settings, Phone, Mail, Calendar, Clock, Wifi, WifiOff } from 'lucide-react'
 import type { BusinessHours } from '@/lib/supabase/types'
 import { DeleteAccountButton } from '@/components/settings/DeleteAccountButton'
+import { FixWebhookButton } from '@/components/settings/FixWebhookButton'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -96,6 +97,9 @@ export default async function SettingsPage() {
             {workspace.human_redirect_number && (
               <p className="mt-1 text-xs text-gray-400">Redirect: {workspace.human_redirect_number}</p>
             )}
+            <div className="mt-4">
+              <FixWebhookButton hasPhone={isPhoneProvisioned} />
+            </div>
           </CardContent>
         </Card>
 

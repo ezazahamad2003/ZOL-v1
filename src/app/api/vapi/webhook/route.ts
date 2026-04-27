@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { verifyVapiSignature } from '@/lib/vapi/webhook-verify'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { enqueueAgentJob } from '@/lib/cloud-tasks/enqueue'
+import { runIntakeAgent } from '@/agents/intake-agent'
 import type { VapiWebhookPayload } from '@/lib/vapi/types'
 import type { Json } from '@/lib/supabase/types'
 
@@ -121,23 +122,33 @@ export async function POST(req: NextRequest) {
         .select('id')
         .maybeSingle()
 
-      // Enqueue agent job (non-blocking)
+      // Run intake agent after response is sent (non-blocking via after())
       if (callRecord?.id) {
-        try {
-          await enqueueAgentJob({
-            shopId: workspace.id,
-            callId: callRecord.id,
-            triggerType: 'call_ended',
-          })
-          console.log(JSON.stringify({
-            level: 'info',
-            message: 'Agent job enqueued',
-            workspaceId: workspace.id,
-            callId: callRecord.id,
-          }))
-        } catch (err) {
-          console.error('[vapi/webhook] Failed to enqueue agent job:', err)
-        }
+        const workspaceId = workspace.id
+        const callId = callRecord.id
+
+        after(async () => {
+          // Prefer Cloud Tasks if GCP is configured
+          const gcpReady = !!(process.env.GCP_PROJECT_ID && process.env.WORKER_URL)
+          if (gcpReady) {
+            try {
+              await enqueueAgentJob({ shopId: workspaceId, callId, triggerType: 'call_ended' })
+              console.log(JSON.stringify({ level: 'info', message: 'Agent job enqueued via Cloud Tasks', workspaceId, callId }))
+              return
+            } catch (err) {
+              console.error('[vapi/webhook] Cloud Tasks enqueue failed, falling back to inline agent:', err)
+            }
+          }
+
+          // Fallback: run intake agent directly (works on Vercel without GCP)
+          try {
+            console.log(JSON.stringify({ level: 'info', message: 'Running intake agent inline', workspaceId, callId }))
+            await runIntakeAgent(workspaceId, callId)
+            console.log(JSON.stringify({ level: 'info', message: 'Intake agent completed', workspaceId, callId }))
+          } catch (err) {
+            console.error('[vapi/webhook] Inline intake agent failed:', err)
+          }
+        })
       }
       break
     }

@@ -113,6 +113,13 @@ export async function linkAssistantToPhoneNumber(
   })
 }
 
+export async function updatePhoneNumberServerUrl(
+  phoneNumberId: string,
+  serverUrl: string
+): Promise<void> {
+  await vapiRequest<unknown>('PATCH', `/phone-number/${phoneNumberId}`, { serverUrl })
+}
+
 export async function deletePhoneNumber(phoneNumberId: string): Promise<void> {
   await vapiRequest<unknown>('DELETE', `/phone-number/${phoneNumberId}`)
 }
