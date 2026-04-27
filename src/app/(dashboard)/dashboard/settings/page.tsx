@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Settings, Phone, Mail, Calendar, Clock, Wifi, WifiOff } from 'lucide-react'
 import type { BusinessHours } from '@/lib/supabase/types'
+import { DeleteAccountButton } from '@/components/settings/DeleteAccountButton'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -179,6 +180,19 @@ export default async function SettingsPage() {
                 )
               })}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Danger Zone */}
+        <Card className="lg:col-span-2 border-red-200">
+          <CardHeader>
+            <CardTitle className="text-base text-red-700">Danger Zone</CardTitle>
+            <CardDescription>
+              Permanently delete your account, workspace, and all associated data including your Vapi phone number.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeleteAccountButton />
           </CardContent>
         </Card>
       </div>
