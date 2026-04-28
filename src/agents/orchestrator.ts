@@ -128,8 +128,9 @@ export async function runOrchestrator(params: {
         break
       }
 
-      // Execute tool calls
+      // Execute tool calls — filter to standard function calls only
       for (const toolCall of message.tool_calls!) {
+        if (toolCall.type !== 'function') continue
         const toolName = toolCall.function.name
         let toolInput: Record<string, unknown> = {}
         try {
@@ -188,7 +189,7 @@ export async function runOrchestrator(params: {
         runId,
         stepNumber: stepNum,
         stepType: 'observe',
-        toolOutput: { tool_results_count: message.tool_calls!.length },
+        toolOutput: { tool_results_count: totalToolCalls },
         status: 'success',
       })
     }
