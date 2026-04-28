@@ -105,20 +105,12 @@ export async function createAssistant(params: {
 export async function linkAssistantToPhoneNumber(
   phoneNumberId: string,
   assistantId: string,
-  serverUrl: string
 ): Promise<VapiPhoneNumberResponse> {
   return vapiRequest<VapiPhoneNumberResponse>('PATCH', `/phone-number/${phoneNumberId}`, {
     assistantId,
-    serverUrl,
   })
 }
 
-export async function updatePhoneNumberServerUrl(
-  phoneNumberId: string,
-  serverUrl: string
-): Promise<void> {
-  await vapiRequest<unknown>('PATCH', `/phone-number/${phoneNumberId}`, { serverUrl })
-}
 
 export async function deletePhoneNumber(phoneNumberId: string): Promise<void> {
   await vapiRequest<unknown>('DELETE', `/phone-number/${phoneNumberId}`)

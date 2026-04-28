@@ -103,18 +103,8 @@ export async function provisionWorkspace(workspaceId: string): Promise<{
   })
 
   // 4. Link assistant to phone number
-  const appOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '')
-  const webhookUrl =
-    process.env.VAPI_WEBHOOK_URL?.trim() ||
-    (appOrigin ? `${appOrigin}/api/vapi/webhook` : '')
-
-  if (!webhookUrl.startsWith('https://')) {
-    throw new Error(
-      'Vapi requires an https:// webhook URL. Set VAPI_WEBHOOK_URL or NEXT_PUBLIC_APP_URL (must be https) in your environment.'
-    )
-  }
-
-  await linkAssistantToPhoneNumber(phoneNumberRes.id, assistantRes.id, webhookUrl)
+  // Webhook is configured at the org level in the Vapi dashboard — no per-number URL needed.
+  await linkAssistantToPhoneNumber(phoneNumberRes.id, assistantRes.id)
 
   // 5. Update workspace in DB
   const { error: updateErr } = await admin
